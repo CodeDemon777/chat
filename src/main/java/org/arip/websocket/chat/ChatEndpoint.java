@@ -9,12 +9,8 @@ import javax.websocket.*;
 import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
 
-/**
- *
- * @author Arip Hidayat
- */
 @ServerEndpoint(
-        value="/chat/{username}",
+        value = "/chat/{username}",
         decoders = MessageDecoder.class,
         encoders = MessageEncoder.class
 )
@@ -24,7 +20,7 @@ public class ChatEndpoint {
     private Session session;
     private String username;
     private static final Set<ChatEndpoint> chatEndpoints = new CopyOnWriteArraySet<>();
-    private static HashMap<String,String> users = new HashMap<>();
+    private static HashMap<String, String> users = new HashMap<>();
 
     @OnOpen
     public void onOpen(Session session, @PathParam("username") String username) throws IOException, EncodeException {
@@ -43,9 +39,13 @@ public class ChatEndpoint {
 
     @OnMessage
     public void onMessage(Session session, Message message) throws IOException, EncodeException {
-        log.info(message.toString());
+        log.info("Received message: " + message.toString());
 
+        // Set sender's username and save message to MongoDB
         message.setFrom(users.get(session.getId()));
+        ChatService.saveMessage(message);  // Save the message to MongoDB
+
+        // Send the message to the specified recipient
         sendMessageToOneUser(message);
     }
 
@@ -62,12 +62,12 @@ public class ChatEndpoint {
 
     @OnError
     public void onError(Session session, Throwable throwable) {
-        log.warning(throwable.toString());
+        log.warning("Error: " + throwable.toString());
     }
 
     private static void broadcast(Message message) throws IOException, EncodeException {
         for (ChatEndpoint endpoint : chatEndpoints) {
-            synchronized(endpoint) {
+            synchronized (endpoint) {
                 endpoint.session.getBasicRemote().sendObject(message);
             }
         }
@@ -75,7 +75,7 @@ public class ChatEndpoint {
 
     private static void sendMessageToOneUser(Message message) throws IOException, EncodeException {
         for (ChatEndpoint endpoint : chatEndpoints) {
-            synchronized(endpoint) {
+            synchronized (endpoint) {
                 if (endpoint.session.getId().equals(getSessionId(message.getTo()))) {
                     endpoint.session.getBasicRemote().sendObject(message);
                 }
@@ -85,7 +85,7 @@ public class ChatEndpoint {
 
     private static String getSessionId(String to) {
         if (users.containsValue(to)) {
-            for (String sessionId: users.keySet()) {
+            for (String sessionId : users.keySet()) {
                 if (users.get(sessionId).equals(to)) {
                     return sessionId;
                 }
